@@ -8,8 +8,9 @@ use ethers_core::{
     abi::{self, Detokenize, ParamType},
     types::{
         Address, Block, BlockId, BlockNumber, BlockTrace, Bytes, Filter, Log, NameOrAddress,
-        Selector, Signature, Trace, TraceFilter, TraceType, Transaction, TransactionReceipt,
-        TransactionRequest, TxHash, TxpoolContent, TxpoolInspect, TxpoolStatus, H256, U256, U64,
+        Selector, Signature, Trace, TraceFilter, TraceRequest, TraceType, Transaction,
+        TransactionReceipt, TransactionRequest, TxHash, TxpoolContent, TxpoolInspect, TxpoolStatus,
+        H256, U256, U64,
     },
     utils,
 };
@@ -551,15 +552,28 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
     /// Executes the given call and returns a number of possible traces for it
     async fn trace_call(
         &self,
-        req: TransactionRequest,
-        trace_type: Vec<TraceType>,
+        req: TraceRequest,
+        block: Option<BlockNumber>,
+    ) -> Result<BlockTrace, ProviderError> {
+        let trace_type = utils::serialize(&req.trace_type);
+        let req = utils::serialize(&req.req);
+        let block = utils::serialize(&block.unwrap_or(BlockNumber::Latest));
+        self.0
+            .request("trace_call", [req, trace_type, block])
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Executes the given call and returns a number of possible traces for it
+    async fn trace_call_many(
+        &self,
+        req: Vec<TraceRequest>,
         block: Option<BlockNumber>,
     ) -> Result<BlockTrace, ProviderError> {
         let req = utils::serialize(&req);
         let block = utils::serialize(&block.unwrap_or(BlockNumber::Latest));
-        let trace_type = utils::serialize(&trace_type);
         self.0
-            .request("trace_call", [req, trace_type, block])
+            .request("trace_callMany", [req, block])
             .await
             .map_err(Into::into)
     }

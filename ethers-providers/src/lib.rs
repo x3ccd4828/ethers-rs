@@ -377,12 +377,25 @@ pub trait Middleware: Sync + Send + Debug {
     /// Executes the given call and returns a number of possible traces for it
     async fn trace_call(
         &self,
-        req: TransactionRequest,
-        trace_type: Vec<TraceType>,
+        req: TraceRequest,
         block: Option<BlockNumber>,
     ) -> Result<BlockTrace, Self::Error> {
         self.inner()
-            .trace_call(req, trace_type, block)
+            .trace_call(req, block)
+            .await
+            .map_err(FromErr::from)
+    }
+
+    /// Performs multiple call traces on top of the same block. i.e. transaction n
+    /// will be executed on top of a pending block with all n-1 transactions applied
+    /// (traced) first. Allows to trace dependent transactions.
+    async fn trace_call_many(
+        &self,
+        req: Vec<TraceRequest>,
+        block: Option<BlockNumber>,
+    ) -> Result<Vec<BlockTrace>, Self::Error> {
+        self.inner()
+            .trace_call(req, block)
             .await
             .map_err(FromErr::from)
     }

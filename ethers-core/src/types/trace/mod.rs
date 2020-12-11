@@ -1,14 +1,14 @@
 //! Types for the Parity Ad-Hoc Trace API
 //!
 //! https://openethereum.github.io/wiki/JSONRPC-trace-module
-use crate::types::{Bytes, H160, H256, U256};
+use crate::types::{Bytes, H160, H256, U256, TransactionRequest};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 mod filter;
 pub use filter::*;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 /// Description of the type of trace to make
 pub enum TraceType {
     /// Transaction Trace
@@ -20,6 +20,15 @@ pub enum TraceType {
     /// State Difference
     #[serde(rename = "stateDiff")]
     StateDiff,
+}
+
+/// Trace request with a transaction and the requested trace types
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub struct TraceRequest {
+    /// The transaction request
+    pub req: TransactionRequest,
+    /// The kind of traces
+    pub trace_type: Vec<TraceType>,
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
