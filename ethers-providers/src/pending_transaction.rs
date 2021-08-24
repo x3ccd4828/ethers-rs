@@ -27,17 +27,17 @@ use wasm_timer::Delay;
 /// is 1, but may be adjusted with the `confirmations` method. If the transaction does not
 /// have enough confirmations or is not mined, the future will stay in the pending state.
 #[pin_project]
-pub struct PendingTransaction<'a, P> {
+pub struct PendingTransaction<'a, M: Middleware> {
     tx_hash: TxHash,
     confirmations: usize,
-    provider: &'a Provider<P>,
-    state: PendingTxState<'a>,
+    provider: &'a M,
+    state: PendingTxState<'a, M>,
     interval: Box<dyn Stream<Item = ()> + Send + Unpin>,
 }
 
-impl<'a, P: JsonRpcClient> PendingTransaction<'a, P> {
+impl<'a, M: Middleware> PendingTransaction<'a, M> {
     /// Creates a new pending transaction poller from a hash and a provider
-    pub fn new(tx_hash: TxHash, provider: &'a Provider<P>) -> Self {
+    pub fn new(tx_hash: TxHash, provider: &'a M) -> Self {
         let delay = Box::pin(Delay::new(DEFAULT_POLL_INTERVAL));
         Self {
             tx_hash,
@@ -85,8 +85,8 @@ macro_rules! rewake_with_new_state_if {
     };
 }
 
-impl<'a, P: JsonRpcClient> Future for PendingTransaction<'a, P> {
-    type Output = Result<Option<TransactionReceipt>, ProviderError>;
+impl<'a, M: Middleware> Future for PendingTransaction<'a, M> {
+    type Output = Result<Option<TransactionReceipt>, M::Error>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
         let this = self.project();
@@ -227,7 +227,7 @@ impl<'a, P: JsonRpcClient> Future for PendingTransaction<'a, P> {
     }
 }
 
-impl<'a, P> fmt::Debug for PendingTransaction<'a, P> {
+impl<'a, M: Middleware> fmt::Debug for PendingTransaction<'a, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PendingTransaction")
             .field("tx_hash", &self.tx_hash)
@@ -237,21 +237,21 @@ impl<'a, P> fmt::Debug for PendingTransaction<'a, P> {
     }
 }
 
-impl<'a, P> PartialEq for PendingTransaction<'a, P> {
+impl<'a, M: Middleware> PartialEq for PendingTransaction<'a, M> {
     fn eq(&self, other: &Self) -> bool {
         self.tx_hash == other.tx_hash
     }
 }
 
-impl<'a, P> PartialEq<TxHash> for PendingTransaction<'a, P> {
+impl<'a, M: Middleware> PartialEq<TxHash> for PendingTransaction<'a, M> {
     fn eq(&self, other: &TxHash) -> bool {
         &self.tx_hash == other
     }
 }
 
-impl<'a, P> Eq for PendingTransaction<'a, P> {}
+impl<'a, M: Middleware> Eq for PendingTransaction<'a, M> {}
 
-impl<'a, P> Deref for PendingTransaction<'a, P> {
+impl<'a, M: Middleware> Deref for PendingTransaction<'a, M> {
     type Target = TxHash;
 
     fn deref(&self) -> &Self::Target {
@@ -260,7 +260,7 @@ impl<'a, P> Deref for PendingTransaction<'a, P> {
 }
 
 // We box the TransactionReceipts to keep the enum small.
-enum PendingTxState<'a> {
+enum PendingTxState<'a, M: Middleware> {
     /// Initial delay to ensure the GettingTx loop doesn't immediately fail
     InitialDelay(Pin<Box<Delay>>),
 
@@ -268,13 +268,13 @@ enum PendingTxState<'a> {
     PausedGettingTx,
 
     /// Polling The blockchain to see if the Tx has confirmed or dropped
-    GettingTx(PinBoxFut<'a, Option<Transaction>>),
+    GettingTx(PinBoxFut<'a, Option<Transaction>, M::Error>),
 
     /// Waiting for interval to elapse before calling API again
     PausedGettingReceipt,
 
     /// Polling the blockchain for the receipt
-    GettingReceipt(PinBoxFut<'a, Option<TransactionReceipt>>),
+    GettingReceipt(PinBoxFut<'a, Option<TransactionReceipt>, M::Error>),
 
     /// If the pending tx required only 1 conf, it will return early. Otherwise it will
     /// proceed to the next state which will poll the block number until there have been
@@ -285,13 +285,13 @@ enum PendingTxState<'a> {
     PausedGettingBlockNumber(Option<TransactionReceipt>),
 
     /// Polling the blockchain for the current block number
-    GettingBlockNumber(PinBoxFut<'a, U64>, Option<TransactionReceipt>),
+    GettingBlockNumber(PinBoxFut<'a, U64, M::Error>, Option<TransactionReceipt> ),
 
     /// Future has completed and should panic if polled again
     Completed,
 }
 
-impl<'a> fmt::Debug for PendingTxState<'a> {
+impl<'a, M: Middleware> fmt::Debug for PendingTxState<'a, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let state = match self {
             PendingTxState::InitialDelay(_) => "InitialDelay",

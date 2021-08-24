@@ -30,34 +30,34 @@ pub fn interval(duration: Duration) -> impl Stream<Item = ()> + Send + Unpin {
 /// The default polling interval for filters and pending transactions
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(7000);
 
-enum FilterWatcherState<'a, R> {
+enum FilterWatcherState<'a, R, M: Middleware> {
     WaitForInterval,
-    GetFilterChanges(PinBoxFut<'a, Vec<R>>),
+    GetFilterChanges(PinBoxFut<'a, Vec<R>, M>),
     NextItem(IntoIter<R>),
 }
 
 #[must_use = "filters do nothing unless you stream them"]
 #[pin_project]
 /// Streams data from an installed filter via `eth_getFilterChanges`
-pub struct FilterWatcher<'a, P, R> {
+pub struct FilterWatcher<'a, M: Middleware, R> {
     /// The filter's installed id on the ethereum node
     pub id: U256,
 
-    provider: &'a Provider<P>,
+    provider: &'a M,
 
     // The polling interval
     interval: Box<dyn Stream<Item = ()> + Send + Unpin>,
 
-    state: FilterWatcherState<'a, R>,
+    state: FilterWatcherState<'a, R, M>,
 }
 
-impl<'a, P, R> FilterWatcher<'a, P, R>
+impl<'a, M, R> FilterWatcher<'a, M, R>
 where
-    P: JsonRpcClient,
+    M: Middleware,
     R: Send + Sync + DeserializeOwned,
 {
     /// Creates a new watcher with the provided factory and filter id.
-    pub fn new<T: Into<U256>>(id: T, provider: &'a Provider<P>) -> Self {
+    pub fn new<T: Into<U256>>(id: T, provider: &'a M) -> Self {
         Self {
             id: id.into(),
             interval: Box::new(interval(DEFAULT_POLL_INTERVAL)),
@@ -81,9 +81,9 @@ where
 
 // Pattern for flattening the returned Vec of filter changes taken from
 // https://github.com/tomusdrw/rust-web3/blob/f043b222744580bf4be043da757ab0b300c3b2da/src/api/eth_filter.rs#L50-L67
-impl<'a, P, R> Stream for FilterWatcher<'a, P, R>
+impl<'a, M, R> Stream for FilterWatcher<'a, M, R>
 where
-    P: JsonRpcClient,
+    M: Middleware,
     R: Serialize + Send + Sync + DeserializeOwned + Debug + 'a,
 {
     type Item = R;
@@ -128,9 +128,9 @@ where
     }
 }
 
-impl<'a, P> FilterWatcher<'a, P, TxHash>
+impl<'a, M> FilterWatcher<'a, M, TxHash>
 where
-    P: JsonRpcClient,
+    M: Middleware,
 {
     /// Returns a stream that yields the `Transaction`s for the transaction hashes this stream yields.
     ///

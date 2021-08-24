@@ -418,7 +418,7 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
         &self,
         tx: T,
         block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, P>, ProviderError> {
+    ) -> Result<PendingTransaction<'_, Self::Inner>, ProviderError> {
         let mut tx = tx.into();
         self.fill_transaction(&mut tx, block).await?;
         let tx_hash = self.request("eth_sendTransaction", [tx]).await?;
@@ -431,7 +431,7 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
     async fn send_raw_transaction<'a>(
         &'a self,
         tx: Bytes,
-    ) -> Result<PendingTransaction<'a, P>, ProviderError> {
+    ) -> Result<PendingTransaction<'a, Self::Inner>, ProviderError> {
         let rlp = utils::serialize(&tx);
         let tx_hash = self.request("eth_sendRawTransaction", [rlp]).await?;
         Ok(PendingTransaction::new(tx_hash, self).interval(self.get_interval()))
@@ -476,14 +476,14 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
     async fn watch<'a>(
         &'a self,
         filter: &Filter,
-    ) -> Result<FilterWatcher<'a, P, Log>, ProviderError> {
+    ) -> Result<FilterWatcher<'a, Self::Inner, Log>, ProviderError> {
         let id = self.new_filter(FilterKind::Logs(filter)).await?;
         let filter = FilterWatcher::new(id, self).interval(self.get_interval());
         Ok(filter)
     }
 
     /// Streams new block hashes
-    async fn watch_blocks(&self) -> Result<FilterWatcher<'_, P, H256>, ProviderError> {
+    async fn watch_blocks(&self) -> Result<FilterWatcher<'_, Self::Inner, H256>, ProviderError> {
         let id = self.new_filter(FilterKind::NewBlocks).await?;
         let filter = FilterWatcher::new(id, self).interval(self.get_interval());
         Ok(filter)
@@ -492,7 +492,7 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
     /// Streams pending transactions
     async fn watch_pending_transactions(
         &self,
-    ) -> Result<FilterWatcher<'_, P, H256>, ProviderError> {
+    ) -> Result<FilterWatcher<'_, Self::Inner, H256>, ProviderError> {
         let id = self.new_filter(FilterKind::PendingTransactions).await?;
         let filter = FilterWatcher::new(id, self).interval(self.get_interval());
         Ok(filter)

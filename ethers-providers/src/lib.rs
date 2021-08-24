@@ -91,10 +91,10 @@ pub use provider::{FilterKind, Provider, ProviderError};
 
 // Helper type alias
 #[cfg(target_arch = "wasm32")]
-pub(crate) type PinBoxFut<'a, T> = Pin<Box<dyn Future<Output = Result<T, ProviderError>> + 'a>>;
+pub(crate) type PinBoxFut<'a, T, E> = Pin<Box<dyn Future<Output = Result<T, E>> + 'a>>;
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) type PinBoxFut<'a, T> =
-    Pin<Box<dyn Future<Output = Result<T, ProviderError>> + Send + 'a>>;
+pub(crate) type PinBoxFut<'a, T, E> =
+    Pin<Box<dyn Future<Output = Result<T, E>> + Send + 'a>>;
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
@@ -191,7 +191,7 @@ where
 pub trait Middleware: Sync + Send + Debug {
     type Error: Sync + Send + Error + FromErr<<Self::Inner as Middleware>::Error>;
     type Provider: JsonRpcClient;
-    type Inner: Middleware<Provider = Self::Provider>;
+    type Inner: Middleware<Provider = Self::Provider> + Sized;
 
     /// The next middleware in the stack
     fn inner(&self) -> &Self::Inner;
@@ -301,7 +301,9 @@ pub trait Middleware: Sync + Send + Debug {
         &self,
         tx: T,
         block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+    ) -> Result<PendingTransaction<'_, Self::Inner>, Self::Error> 
+    where Self: Sized
+    {
         self.inner()
             .send_transaction(tx, block)
             .await
@@ -452,7 +454,7 @@ pub trait Middleware: Sync + Send + Debug {
     async fn send_raw_transaction<'a>(
         &'a self,
         tx: Bytes,
-    ) -> Result<PendingTransaction<'a, Self::Provider>, Self::Error> {
+    ) -> Result<PendingTransaction<'a, Self::Inner>, Self::Error> {
         self.inner()
             .send_raw_transaction(tx)
             .await
@@ -497,13 +499,13 @@ pub trait Middleware: Sync + Send + Debug {
     async fn watch<'a>(
         &'a self,
         filter: &Filter,
-    ) -> Result<FilterWatcher<'a, Self::Provider, Log>, Self::Error> {
+    ) -> Result<FilterWatcher<'a, Self::Inner, Log>, Self::Error> {
         self.inner().watch(filter).await.map_err(FromErr::from)
     }
 
     async fn watch_pending_transactions(
         &self,
-    ) -> Result<FilterWatcher<'_, Self::Provider, H256>, Self::Error> {
+    ) -> Result<FilterWatcher<'_, Self::Inner, H256>, Self::Error> {
         self.inner()
             .watch_pending_transactions()
             .await
@@ -521,7 +523,7 @@ pub trait Middleware: Sync + Send + Debug {
             .map_err(FromErr::from)
     }
 
-    async fn watch_blocks(&self) -> Result<FilterWatcher<'_, Self::Provider, H256>, Self::Error> {
+    async fn watch_blocks(&self) -> Result<FilterWatcher<'_, Self::Inner, H256>, Self::Error> {
         self.inner().watch_blocks().await.map_err(FromErr::from)
     }
 
