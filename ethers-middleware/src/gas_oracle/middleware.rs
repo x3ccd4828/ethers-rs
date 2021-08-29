@@ -2,8 +2,8 @@ use super::{GasOracle, GasOracleError};
 use async_trait::async_trait;
 use ethers_core::types::{transaction::eip2718::TypedTransaction, *};
 use ethers_providers::{FromErr, Middleware, PendingTransaction};
-use thiserror::Error;
 use eyre::Result;
+use thiserror::Error;
 
 #[derive(Debug)]
 /// Middleware used for fetching gas prices over an API instead of `eth_gasPrice`
@@ -89,8 +89,6 @@ where
                 }
             }
         };
-        Ok(self.inner
-            .send_transaction(tx, block)
-            .await?)
+        Ok(self.inner.send_transaction(tx, block).await?)
     }
 }

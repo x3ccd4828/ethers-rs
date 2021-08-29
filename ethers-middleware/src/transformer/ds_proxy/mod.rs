@@ -83,7 +83,7 @@ impl DsProxy {
         client: C,
         factory: Option<Address>,
         owner: Address,
-    ) -> Result<Self, ContractError<M>> {
+    ) -> Result<Self, ContractError> {
         let client = client.into();
 
         // Fetch chain id and the corresponding address of DsProxyFactory contract
@@ -112,8 +112,7 @@ impl DsProxy {
             .legacy()
             .send()
             .await?
-            .await
-            .map_err(ContractError::ProviderError)?
+            .await?
             .ok_or(ContractError::ContractNotDeployed)?;
 
         // decode the event log to get the address of the deployed contract.

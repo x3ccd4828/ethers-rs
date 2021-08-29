@@ -28,7 +28,7 @@ pub enum ContractError {
 
     /// Thrown when a middleware call fails
     #[error("{0}")]
-    MiddlewareError(eyre::Error),
+    MiddlewareError(#[from] eyre::Error),
 
     /// Thrown when a provider call fails
     #[error("{0}")]

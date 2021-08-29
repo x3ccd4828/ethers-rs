@@ -73,6 +73,7 @@ impl<M, S> SignerMiddleware<M, S>
 where
     M: Middleware,
     S: Signer,
+    <S as Signer>::Error: 'static,
 {
     /// Creates a new client from the provider and signer.
     pub fn new(inner: M, signer: S) -> Self {
@@ -120,6 +121,7 @@ impl<M, S> Middleware for SignerMiddleware<M, S>
 where
     M: Middleware,
     S: Signer,
+    <S as Signer>::Error: 'static,
 {
     type Provider = M::Provider;
     type Inner = M;

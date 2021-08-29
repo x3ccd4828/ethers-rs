@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::*;
 use ethers_providers::{FromErr, Middleware, PendingTransaction};
+use eyre::Result;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use thiserror::Error;
-use eyre::Result;
 
 #[derive(Debug)]
 /// Middleware used for calculating nonces locally, useful for signing multiple
@@ -37,10 +37,7 @@ where
         nonce.into()
     }
 
-    async fn get_transaction_count_with_manager(
-        &self,
-        block: Option<BlockId>,
-    ) -> Result<U256> {
+    async fn get_transaction_count_with_manager(&self, block: Option<BlockId>) -> Result<U256> {
         // initialize the nonce the first time the manager is called
         if !self.initialized.load(Ordering::SeqCst) {
             let nonce = self
@@ -91,9 +88,7 @@ where
                     // was a nonce mismatch
                     self.nonce.store(nonce.as_u64(), Ordering::SeqCst);
                     tx.set_nonce(nonce);
-                    Ok(self.inner
-                        .send_transaction(tx, block)
-                        .await?)
+                    Ok(self.inner.send_transaction(tx, block).await?)
                 } else {
                     // propagate the error otherwise
                     Err(err.into())

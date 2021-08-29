@@ -94,15 +94,12 @@ where
     ) -> eyre::Result<PendingTransaction<'_, Self::Provider>> {
         let tx = tx.into();
 
-        let pending_tx = self
-            .inner()
-            .send_transaction(tx.clone(), block)
-            .await?;
+        let pending_tx = self.inner().send_transaction(tx.clone(), block).await?;
 
         let tx = match tx {
             TypedTransaction::Legacy(inner) => inner,
             TypedTransaction::Eip2930(inner) => inner.tx,
-            _ => return Err(GasEscalatorError::UnsupportedTxType),
+            _ => return Err(GasEscalatorError::UnsupportedTxType.into()),
         };
 
         // insert the tx in the pending txs
@@ -151,16 +148,10 @@ where
     }
 
     /// Re-broadcasts pending transactions with a gas price escalator
-    pub async fn escalate(&self) -> Result<(), GasEscalatorError<M>> {
+    pub async fn escalate(&self) -> Result<(), GasEscalatorError> {
         // the escalation frequency is either on a per-block basis, or on a duration basis
         let mut watcher: WatcherFuture = match self.frequency {
-            Frequency::PerBlock => Box::pin(
-                self.inner
-                    .watch_blocks()
-                    .await
-                    .map_err(GasEscalatorError::MiddlewareError)?
-                    .map(|_| ()),
-            ),
+            Frequency::PerBlock => Box::pin(self.inner.watch_blocks().await?.map(|_| ())),
             Frequency::Duration(ms) => Box::pin(interval(std::time::Duration::from_millis(ms))),
         };
 
@@ -238,4 +229,6 @@ where
 pub enum GasEscalatorError {
     #[error("Gas escalation is only supported for EIP2930 or Legacy transactions")]
     UnsupportedTxType,
+    #[error("{0}")]
+    MiddlewareError(#[from] eyre::Error),
 }

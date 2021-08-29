@@ -97,7 +97,7 @@ where
             .policy
             .ensure_can_send(tx.into())
             .await
-            .map_err(PolicyMiddlewareError::PolicyError)?;
+            .map_err(|e| eyre::eyre!("failed policy check: {:?}", e))?;
         Ok(self.inner.send_transaction(tx, block).await?)
     }
 }

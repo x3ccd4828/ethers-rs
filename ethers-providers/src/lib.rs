@@ -655,7 +655,7 @@ pub trait CeloMiddleware: Middleware {
     async fn get_validators_bls_public_keys<T: Into<BlockId> + Send + Sync>(
         &self,
         block_id: T,
-    ) -> Result<Vec<String>, ProviderError> {
+    ) -> Result<Vec<String>> {
         self.provider()
             .get_validators_bls_public_keys(block_id)
             .await
