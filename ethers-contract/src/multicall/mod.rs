@@ -160,7 +160,7 @@ impl<M: Middleware> Multicall<M> {
     pub async fn new<C: Into<Arc<M>>>(
         client: C,
         address: Option<Address>,
-    ) -> Result<Self, ContractError<M>> {
+    ) -> Result<Self, ContractError> {
         let client = client.into();
 
         // Fetch chain id and the corresponding address of Multicall contract
@@ -286,7 +286,7 @@ impl<M: Middleware> Multicall<M> {
 
     /// Queries the Ethereum blockchain via an `eth_call`, but via the Multicall contract.
     ///
-    /// It returns a [`ContractError<M>`] if there is any error in the RPC call or while
+    /// It returns a [`ContractError`] if there is any error in the RPC call or while
     /// detokenizing the tokens back to the expected return type. The return type must be
     /// annonated while calling this method.
     ///
@@ -311,8 +311,8 @@ impl<M: Middleware> Multicall<M> {
     ///
     /// Note: this method _does not_ send a transaction from your account
     ///
-    /// [`ContractError<M>`]: crate::ContractError<M>
-    pub async fn call<D: Detokenize>(&self) -> Result<D, ContractError<M>> {
+    /// [`ContractError`]: crate::ContractError
+    pub async fn call<D: Detokenize>(&self) -> Result<D, ContractError> {
         let contract_call = self.as_contract_call();
 
         // Fetch response from the Multicall contract
@@ -332,7 +332,7 @@ impl<M: Middleware> Multicall<M> {
                     _ => Token::Tuple(tokens),
                 })
             })
-            .collect::<Result<Vec<Token>, ContractError<M>>>()?;
+            .collect::<Result<Vec<Token>, ContractError>>()?;
 
         // Form tokens that represent tuples
         let tokens = vec![Token::Tuple(tokens)];
@@ -359,7 +359,7 @@ impl<M: Middleware> Multicall<M> {
     ///
     /// Note: this method sends a transaction from your account, and will return an error
     /// if you do not have sufficient funds to pay for gas
-    pub async fn send(&self) -> Result<TxHash, ContractError<M>> {
+    pub async fn send(&self) -> Result<TxHash, ContractError> {
         let contract_call = self.as_contract_call();
 
         // Broadcast transaction and return the transaction hash

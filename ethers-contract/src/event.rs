@@ -124,8 +124,8 @@ where
         &'a self,
     ) -> Result<
         // Wraps the FilterWatcher with a mapping to the event
-        EventStream<'a, FilterWatcher<'a, M::Provider, Log>, D, ContractError<M>>,
-        ContractError<M>,
+        EventStream<'a, FilterWatcher<'a, M::Provider, Log>, D, ContractError>,
+        ContractError,
     > {
         let filter = self
             .provider
@@ -151,8 +151,8 @@ where
         &'a self,
     ) -> Result<
         // Wraps the SubscriptionStream with a mapping to the event
-        EventStream<'a, SubscriptionStream<'a, M::Provider, Log>, D, ContractError<M>>,
-        ContractError<M>,
+        EventStream<'a, SubscriptionStream<'a, M::Provider, Log>, D, ContractError>,
+        ContractError,
     > {
         let filter = self
             .provider
@@ -174,7 +174,7 @@ where
 {
     /// Queries the blockchain for the selected filter and returns a vector of matching
     /// event logs
-    pub async fn query(&self) -> Result<Vec<D>, ContractError<M>> {
+    pub async fn query(&self) -> Result<Vec<D>, ContractError> {
         let logs = self
             .provider
             .get_logs(&self.filter)
@@ -183,13 +183,13 @@ where
         let events = logs
             .into_iter()
             .map(|log| self.parse_log(log))
-            .collect::<Result<Vec<_>, ContractError<M>>>()?;
+            .collect::<Result<Vec<_>, ContractError>>()?;
         Ok(events)
     }
 
     /// Queries the blockchain for the selected filter and returns a vector of logs
     /// along with their metadata
-    pub async fn query_with_meta(&self) -> Result<Vec<(D, LogMeta)>, ContractError<M>> {
+    pub async fn query_with_meta(&self) -> Result<Vec<(D, LogMeta)>, ContractError> {
         let logs = self
             .provider
             .get_logs(&self.filter)
@@ -202,11 +202,11 @@ where
                 let event = self.parse_log(log)?;
                 Ok((event, meta))
             })
-            .collect::<Result<_, ContractError<M>>>()?;
+            .collect::<Result<_, ContractError>>()?;
         Ok(events)
     }
 
-    fn parse_log(&self, log: Log) -> Result<D, ContractError<M>> {
+    fn parse_log(&self, log: Log) -> Result<D, ContractError> {
         D::decode_log(&RawLog {
             topics: log.topics,
             data: log.data.to_vec(),

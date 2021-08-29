@@ -49,7 +49,7 @@ impl<M: Middleware> Deployer<M> {
     /// Broadcasts the contract deployment transaction and after waiting for it to
     /// be sufficiently confirmed (default: 1), it returns a [`Contract`](crate::Contract)
     /// struct at the deployed contract's address.
-    pub async fn send(self) -> Result<Contract<M>, ContractError<M>> {
+    pub async fn send(self) -> Result<Contract<M>, ContractError> {
         let pending_tx = self
             .client
             .send_transaction(self.tx, Some(self.block.into()))
@@ -149,7 +149,7 @@ impl<M: Middleware> ContractFactory<M> {
     /// 1. If there are no constructor arguments, you should pass `()` as the argument.
     /// 1. The default poll duration is 7 seconds.
     /// 1. The default number of confirmations is 1 block.
-    pub fn deploy<T: Tokenize>(self, constructor_args: T) -> Result<Deployer<M>, ContractError<M>> {
+    pub fn deploy<T: Tokenize>(self, constructor_args: T) -> Result<Deployer<M>, ContractError> {
         // Encode the constructor args & concatenate with the bytecode if necessary
         let params = constructor_args.into_tokens();
         let data: Bytes = match (self.abi.constructor(), params.is_empty()) {

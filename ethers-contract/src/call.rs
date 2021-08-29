@@ -13,7 +13,7 @@ use thiserror::Error as ThisError;
 
 #[derive(ThisError, Debug)]
 /// An Error which is thrown when interacting with a smart contract
-pub enum ContractError<M: Middleware> {
+pub enum ContractError {
     /// Thrown when the ABI decoding fails
     #[error(transparent)]
     DecodingError(#[from] ethers_core::abi::Error),
@@ -28,7 +28,7 @@ pub enum ContractError<M: Middleware> {
 
     /// Thrown when a middleware call fails
     #[error("{0}")]
-    MiddlewareError(M::Error),
+    MiddlewareError(eyre::Error),
 
     /// Thrown when a provider call fails
     #[error("{0}")]
@@ -116,7 +116,7 @@ where
     }
 
     /// Returns the estimated gas cost for the underlying transaction to be executed
-    pub async fn estimate_gas(&self) -> Result<U256, ContractError<M>> {
+    pub async fn estimate_gas(&self) -> Result<U256, ContractError> {
         self.client
             .estimate_gas(&self.tx)
             .await
@@ -132,7 +132,7 @@ where
     /// and return the return type of the transaction without mutating the state
     ///
     /// Note: this function _does not_ send a transaction from your account
-    pub async fn call(&self) -> Result<D, ContractError<M>> {
+    pub async fn call(&self) -> Result<D, ContractError> {
         let bytes = self
             .client
             .call(&self.tx.clone(), self.block)
@@ -146,7 +146,7 @@ where
     }
 
     /// Signs and broadcasts the provided transaction
-    pub async fn send(&self) -> Result<PendingTransaction<'_, M::Provider>, ContractError<M>> {
+    pub async fn send(&self) -> Result<PendingTransaction<'_, M::Provider>, ContractError> {
         self.client
             .send_transaction(self.tx.clone(), self.block)
             .await
