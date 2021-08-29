@@ -23,18 +23,18 @@ impl Default for MockProvider {
     }
 }
 
+use eyre::Result;
+
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl JsonRpcClient for MockProvider {
-    type Error = MockError;
-
     /// Pushes the `(method, input)` to the back of the `requests` queue,
     /// pops the responses from the back of the `responses` queue
     async fn request<T: Serialize + Send + Sync, R: DeserializeOwned>(
         &self,
         method: &str,
         input: T,
-    ) -> Result<R, MockError> {
+    ) -> Result<R> {
         self.requests
             .lock()
             .unwrap()
@@ -49,11 +49,7 @@ impl JsonRpcClient for MockProvider {
 
 impl MockProvider {
     /// Checks that the provided request was submitted by the client
-    pub fn assert_request<T: Serialize + Send + Sync>(
-        &self,
-        method: &str,
-        data: T,
-    ) -> Result<(), MockError> {
+    pub fn assert_request<T: Serialize + Send + Sync>(&self, method: &str, data: T) -> Result<()> {
         let (m, inp) = self
             .requests
             .lock()
@@ -77,7 +73,7 @@ impl MockProvider {
     }
 
     /// Pushes the data to the responses
-    pub fn push<T: Serialize + Send + Sync, K: Borrow<T>>(&self, data: K) -> Result<(), MockError> {
+    pub fn push<T: Serialize + Send + Sync, K: Borrow<T>>(&self, data: K) -> Result<()> {
         let value = serde_json::to_value(data.borrow())?;
         self.responses.lock().unwrap().push_back(value);
         Ok(())
@@ -126,7 +122,10 @@ mod tests {
         let err = mock
             .request::<_, ()>("eth_blockNumber", ())
             .await
-            .unwrap_err();
+            .unwrap_err()
+            .downcast()
+            .unwrap();
+        // assert_eq!(err.to_string(), MockError::EmptyResponses.to_string())
         match err {
             MockError::EmptyResponses => {}
             _ => panic!("expected empty responses"),
@@ -137,7 +136,11 @@ mod tests {
     async fn empty_requests() {
         let mock = MockProvider::new();
         // tries to assert a request without making one
-        let err = mock.assert_request("eth_blockNumber", ()).unwrap_err();
+        let err = mock
+            .assert_request("eth_blockNumber", ())
+            .unwrap_err()
+            .downcast()
+            .unwrap();
         match err {
             MockError::EmptyRequests => {}
             _ => panic!("expected empty request"),

@@ -62,15 +62,13 @@ impl From<ClientError> for ProviderError {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl JsonRpcClient for Provider {
-    type Error = ClientError;
-
     /// Sends a POST request with the provided method and the params serialized as JSON
     /// over HTTP
     async fn request<T: Serialize + Send + Sync, R: DeserializeOwned>(
         &self,
         method: &str,
         params: T,
-    ) -> Result<R, ClientError> {
+    ) -> eyre::Result<R> {
         let next_id = self.id.load(Ordering::SeqCst) + 1;
         self.id.store(next_id, Ordering::SeqCst);
 

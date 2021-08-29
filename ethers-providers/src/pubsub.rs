@@ -12,16 +12,18 @@ use std::{
     task::{Context, Poll},
 };
 
+use eyre::Result;
+
 /// A transport implementation supporting pub sub subscriptions.
 pub trait PubsubClient: JsonRpcClient {
     /// The type of stream this transport returns
     type NotificationStream: futures_core::Stream<Item = Value> + Send + Unpin;
 
     /// Add a subscription to this transport
-    fn subscribe<T: Into<U256>>(&self, id: T) -> Result<Self::NotificationStream, Self::Error>;
+    fn subscribe<T: Into<U256>>(&self, id: T) -> Result<Self::NotificationStream>;
 
     /// Remove a subscription from this transport
-    fn unsubscribe<T: Into<U256>>(&self, id: T) -> Result<(), Self::Error>;
+    fn unsubscribe<T: Into<U256>>(&self, id: T) -> Result<()>;
 }
 
 #[must_use = "subscriptions do nothing unless you stream them"]
@@ -51,7 +53,7 @@ where
     /// Instantiating this directly with a known ID will likely cause any
     /// existing streams with that ID to end. To avoid this, start a new stream
     /// using [`Provider::subscribe`] instead of `SubscriptionStream::new`.
-    pub fn new(id: U256, provider: &'a Provider<P>) -> Result<Self, P::Error> {
+    pub fn new(id: U256, provider: &'a Provider<P>) -> Result<Self> {
         // Call the underlying PubsubClient's subscribe
         let rx = provider.as_ref().subscribe(id)?;
         Ok(Self {
@@ -63,7 +65,7 @@ where
     }
 
     /// Unsubscribes from the subscription.
-    pub async fn unsubscribe(&self) -> Result<bool, crate::ProviderError> {
+    pub async fn unsubscribe(&self) -> Result<bool> {
         self.provider.unsubscribe(self.id).await
     }
 }

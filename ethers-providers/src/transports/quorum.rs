@@ -9,6 +9,7 @@ use std::{
 use crate::{provider::ProviderError, JsonRpcClient, PubsubClient};
 use async_trait::async_trait;
 use ethers_core::types::{U256, U64};
+use eyre::Result;
 use futures_core::Stream;
 use futures_util::{future::join_all, FutureExt, StreamExt};
 use serde::{de::DeserializeOwned, Serialize};
@@ -145,23 +146,23 @@ impl<T: JsonRpcClientWrapper> QuorumProvider<T> {
     /// Returns the block height that _all_ providers have surpassed.
     ///
     /// This is the minimum of all provider's block numbers
-    async fn get_minimum_block_number(&self) -> Result<U64, ProviderError> {
+    async fn get_minimum_block_number(&self) -> Result<U64> {
         let mut numbers = join_all(self.providers.iter().map(|provider| async move {
             let block = provider
                 .inner
                 .request("eth_blockNumber", serde_json::json!(()))
                 .await?;
-            serde_json::from_value::<U64>(block).map_err(ProviderError::from)
+            Ok(serde_json::from_value::<U64>(block)?)
         }))
         .await
         .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>>>()?;
         numbers.sort();
 
         numbers
             .into_iter()
             .next()
-            .ok_or_else(|| ProviderError::CustomError("No Providers".to_string()))
+            .ok_or_else(|| ProviderError::CustomError("No Providers".to_string()).into())
     }
 
     /// Normalizes the request payload depending on the call
@@ -245,10 +246,9 @@ impl Default for Quorum {
 // A future that returns the provider's response and it's index within the
 // `QuorumProvider` provider set
 #[cfg(target_arch = "wasm32")]
-type PendingRequest<'a> = Pin<Box<dyn Future<Output = (Result<Value, ProviderError>, usize)> + 'a>>;
+type PendingRequest<'a> = Pin<Box<dyn Future<Output = (Result<Value>, usize)> + 'a>>;
 #[cfg(not(target_arch = "wasm32"))]
-type PendingRequest<'a> =
-    Pin<Box<dyn Future<Output = (Result<Value, ProviderError>, usize)> + 'a + Send>>;
+type PendingRequest<'a> = Pin<Box<dyn Future<Output = (Result<Value>, usize)> + 'a + Send>>;
 
 /// A future that only returns a value of the `QuorumProvider`'s provider
 /// reached a quorum.
@@ -257,7 +257,7 @@ struct QuorumRequest<'a, T> {
     /// The different answers with their cumulative weight
     responses: Vec<(Value, u64)>,
     /// All the errors the provider yielded
-    errors: Vec<ProviderError>,
+    errors: Vec<eyre::Error>,
     // Requests currently pending
     requests: Vec<PendingRequest<'a>>,
 }
@@ -274,7 +274,7 @@ impl<'a, T> QuorumRequest<'a, T> {
 }
 
 impl<'a, T> Future for QuorumRequest<'a, T> {
-    type Output = Result<Value, QuorumError>;
+    type Output = Result<Value>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -314,7 +314,7 @@ impl<'a, T> Future for QuorumRequest<'a, T> {
                 .map(|r| r.0)
                 .collect();
             let errors = std::mem::take(&mut this.errors);
-            Poll::Ready(Err(QuorumError::NoQuorumReached { values, errors }))
+            Poll::Ready(Err(QuorumError::NoQuorumReached { values, errors }.into()))
         } else {
             Poll::Pending
         }
@@ -346,7 +346,7 @@ pub enum QuorumError {
     #[error("No Quorum reached.")]
     NoQuorumReached {
         values: Vec<Value>,
-        errors: Vec<ProviderError>,
+        errors: Vec<eyre::Error>,
     },
 }
 
@@ -359,31 +359,29 @@ impl From<QuorumError> for ProviderError {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait JsonRpcClientWrapper: Send + Sync + fmt::Debug {
-    async fn request(&self, method: &str, params: Value) -> Result<Value, ProviderError>;
+    async fn request(&self, method: &str, params: Value) -> Result<Value>;
 }
 type NotificationStream = Box<dyn futures_core::Stream<Item = Value> + Send + Unpin + 'static>;
 
 pub trait PubsubClientWrapper: JsonRpcClientWrapper {
     /// Add a subscription to this transport
-    fn subscribe(&self, id: U256) -> Result<NotificationStream, ProviderError>;
+    fn subscribe(&self, id: U256) -> Result<NotificationStream>;
 
     /// Remove a subscription from this transport
-    fn unsubscribe(&self, id: U256) -> Result<(), ProviderError>;
+    fn unsubscribe(&self, id: U256) -> Result<()>;
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<C: JsonRpcClient> JsonRpcClientWrapper for C {
-    async fn request(&self, method: &str, params: Value) -> Result<Value, ProviderError> {
-        Ok(JsonRpcClient::request(self, method, params)
-            .await
-            .map_err(C::Error::into)?)
+    async fn request(&self, method: &str, params: Value) -> Result<Value> {
+        Ok(JsonRpcClient::request(self, method, params).await?)
     }
 }
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl JsonRpcClientWrapper for Box<dyn JsonRpcClientWrapper> {
-    async fn request(&self, method: &str, params: Value) -> Result<Value, ProviderError> {
+    async fn request(&self, method: &str, params: Value) -> Result<Value> {
         self.as_ref().request(method, params).await
     }
 }
@@ -391,7 +389,7 @@ impl JsonRpcClientWrapper for Box<dyn JsonRpcClientWrapper> {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl JsonRpcClientWrapper for Box<dyn PubsubClientWrapper> {
-    async fn request(&self, method: &str, params: Value) -> Result<Value, ProviderError> {
+    async fn request(&self, method: &str, params: Value) -> Result<Value> {
         self.as_ref().request(method, params).await
     }
 }
@@ -400,23 +398,21 @@ impl<C: PubsubClient> PubsubClientWrapper for C
 where
     <C as PubsubClient>::NotificationStream: 'static,
 {
-    fn subscribe(&self, id: U256) -> Result<NotificationStream, ProviderError> {
-        Ok(Box::new(
-            PubsubClient::subscribe(self, id).map_err(C::Error::into)?,
-        ))
+    fn subscribe(&self, id: U256) -> Result<NotificationStream> {
+        Ok(Box::new(PubsubClient::subscribe(self, id)?))
     }
 
-    fn unsubscribe(&self, id: U256) -> Result<(), ProviderError> {
-        PubsubClient::unsubscribe(self, id).map_err(C::Error::into)
+    fn unsubscribe(&self, id: U256) -> Result<()> {
+        PubsubClient::unsubscribe(self, id)
     }
 }
 
 impl PubsubClientWrapper for Box<dyn PubsubClientWrapper> {
-    fn subscribe(&self, id: U256) -> Result<NotificationStream, ProviderError> {
+    fn subscribe(&self, id: U256) -> Result<NotificationStream> {
         self.as_ref().subscribe(id)
     }
 
-    fn unsubscribe(&self, id: U256) -> Result<(), ProviderError> {
+    fn unsubscribe(&self, id: U256) -> Result<()> {
         self.as_ref().unsubscribe(id)
     }
 }
@@ -427,13 +423,11 @@ impl<C> JsonRpcClient for QuorumProvider<C>
 where
     C: JsonRpcClientWrapper,
 {
-    type Error = ProviderError;
-
     async fn request<T: Serialize + Send + Sync, R: DeserializeOwned>(
         &self,
         method: &str,
         params: T,
-    ) -> Result<R, Self::Error> {
+    ) -> Result<R> {
         let mut params = serde_json::to_value(params)?;
         self.normalize_request(method, &mut params).await;
 
@@ -539,7 +533,7 @@ where
 {
     type NotificationStream = QuorumStream;
 
-    fn subscribe<T: Into<U256>>(&self, id: T) -> Result<Self::NotificationStream, Self::Error> {
+    fn subscribe<T: Into<U256>>(&self, id: T) -> Result<Self::NotificationStream> {
         let id = id.into();
         let mut notifications = Vec::with_capacity(self.providers.len());
         for provider in &self.providers {
@@ -550,7 +544,7 @@ where
         Ok(QuorumStream::new(self.quorum_weight, notifications))
     }
 
-    fn unsubscribe<T: Into<U256>>(&self, id: T) -> Result<(), Self::Error> {
+    fn unsubscribe<T: Into<U256>>(&self, id: T) -> Result<()> {
         let id = id.into();
         for provider in &self.providers {
             provider.inner.unsubscribe(id)?;

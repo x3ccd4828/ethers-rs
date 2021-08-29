@@ -146,19 +146,10 @@ where
 #[derive(Debug, thiserror::Error)]
 pub enum GetTransactionError {
     #[error("Failed to get transaction `{0}`: {1}")]
-    ProviderError(TxHash, ProviderError),
+    ProviderError(TxHash, eyre::Error),
     /// `get_transaction` resulted in a `None`
     #[error("Transaction `{0}` not found")]
     NotFound(TxHash),
-}
-
-impl From<GetTransactionError> for ProviderError {
-    fn from(err: GetTransactionError) -> Self {
-        match err {
-            GetTransactionError::ProviderError(_, err) => err,
-            err @ GetTransactionError::NotFound(_) => ProviderError::CustomError(err.to_string()),
-        }
-    }
 }
 
 type TransactionFut<'a> = Pin<Box<dyn Future<Output = TransactionResult> + 'a>>;

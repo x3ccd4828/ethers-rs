@@ -86,7 +86,7 @@ macro_rules! rewake_with_new_state_if {
 }
 
 impl<'a, P: JsonRpcClient> Future for PendingTransaction<'a, P> {
-    type Output = Result<Option<TransactionReceipt>, ProviderError>;
+    type Output = eyre::Result<Option<TransactionReceipt>>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
         let this = self.project();

@@ -24,6 +24,7 @@ use tokio::{
 };
 use tokio_util::io::ReaderStream;
 use tracing::{error, warn};
+use eyre::Result;
 
 /// Unix Domain Sockets (IPC) transport.
 #[derive(Debug, Clone)]
@@ -79,13 +80,11 @@ impl Ipc {
 
 #[async_trait]
 impl JsonRpcClient for Ipc {
-    type Error = IpcError;
-
     async fn request<T: Serialize + Send + Sync, R: DeserializeOwned>(
         &self,
         method: &str,
         params: T,
-    ) -> Result<R, IpcError> {
+    ) -> Result<R> {
         let next_id = self.id.fetch_add(1, Ordering::SeqCst);
 
         // Create the request and initialize the response channel
@@ -110,7 +109,7 @@ impl JsonRpcClient for Ipc {
 impl PubsubClient for Ipc {
     type NotificationStream = mpsc::UnboundedReceiver<serde_json::Value>;
 
-    fn subscribe<T: Into<U256>>(&self, id: T) -> Result<Self::NotificationStream, IpcError> {
+    fn subscribe<T: Into<U256>>(&self, id: T) -> Result<Self::NotificationStream> {
         let (sink, stream) = mpsc::unbounded();
         self.send(TransportMessage::Subscribe {
             id: id.into(),
@@ -119,8 +118,8 @@ impl PubsubClient for Ipc {
         Ok(stream)
     }
 
-    fn unsubscribe<T: Into<U256>>(&self, id: T) -> Result<(), IpcError> {
-        self.send(TransportMessage::Unsubscribe { id: id.into() })
+    fn unsubscribe<T: Into<U256>>(&self, id: T) -> Result<()> {
+        Ok(self.send(TransportMessage::Unsubscribe { id: id.into() })?)
     }
 }
 

@@ -6,6 +6,7 @@ use crate::{
 use ethers_core::types::U256;
 
 use async_trait::async_trait;
+use eyre::Result;
 use futures_channel::{mpsc, oneshot};
 use futures_util::{
     sink::{Sink, SinkExt},
@@ -163,13 +164,11 @@ impl Ws {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl JsonRpcClient for Ws {
-    type Error = ClientError;
-
     async fn request<T: Serialize + Send + Sync, R: DeserializeOwned>(
         &self,
         method: &str,
         params: T,
-    ) -> Result<R, ClientError> {
+    ) -> Result<R> {
         let next_id = self.id.fetch_add(1, Ordering::SeqCst);
 
         // send the message
@@ -197,7 +196,7 @@ impl JsonRpcClient for Ws {
 impl PubsubClient for Ws {
     type NotificationStream = mpsc::UnboundedReceiver<serde_json::Value>;
 
-    fn subscribe<T: Into<U256>>(&self, id: T) -> Result<Self::NotificationStream, ClientError> {
+    fn subscribe<T: Into<U256>>(&self, id: T) -> Result<Self::NotificationStream> {
         let (sink, stream) = mpsc::unbounded();
         self.send(Instruction::Subscribe {
             id: id.into(),
@@ -206,8 +205,8 @@ impl PubsubClient for Ws {
         Ok(stream)
     }
 
-    fn unsubscribe<T: Into<U256>>(&self, id: T) -> Result<(), ClientError> {
-        self.send(Instruction::Unsubscribe { id: id.into() })
+    fn unsubscribe<T: Into<U256>>(&self, id: T) -> Result<()> {
+        Ok(self.send(Instruction::Unsubscribe { id: id.into() })?)
     }
 }
 
