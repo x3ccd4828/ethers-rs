@@ -7,6 +7,8 @@ use ethers_signers::Signer;
 use async_trait::async_trait;
 use thiserror::Error;
 
+use eyre::Result;
+
 #[derive(Clone, Debug)]
 /// Middleware used for locally signing transactions, compatible with any implementer
 /// of the [`Signer`] trait.
@@ -66,37 +68,6 @@ pub struct SignerMiddleware<M, S> {
     pub(crate) address: Address,
 }
 
-impl<M: Middleware, S: Signer> FromErr<M::Error> for SignerMiddlewareError<M, S> {
-    fn from(src: M::Error) -> SignerMiddlewareError<M, S> {
-        SignerMiddlewareError::MiddlewareError(src)
-    }
-}
-
-#[derive(Error, Debug)]
-/// Error thrown when the client interacts with the blockchain
-pub enum SignerMiddlewareError<M: Middleware, S: Signer> {
-    #[error("{0}")]
-    /// Thrown when the internal call to the signer fails
-    SignerError(S::Error),
-
-    #[error("{0}")]
-    /// Thrown when an internal middleware errors
-    MiddlewareError(M::Error),
-
-    /// Thrown if the `nonce` field is missing
-    #[error("no nonce was specified")]
-    NonceMissing,
-    /// Thrown if the `gas_price` field is missing
-    #[error("no gas price was specified")]
-    GasPriceMissing,
-    /// Thrown if the `gas` field is missing
-    #[error("no gas was specified")]
-    GasMissing,
-    /// Thrown if a signature is requested from a different address
-    #[error("specified from address is not signer")]
-    WrongSigner,
-}
-
 // Helper functions for locally signing transactions
 impl<M, S> SignerMiddleware<M, S>
 where
@@ -114,15 +85,8 @@ where
     }
 
     /// Signs and returns the RLP encoding of the signed transaction
-    async fn sign_transaction(
-        &self,
-        tx: TypedTransaction,
-    ) -> Result<Bytes, SignerMiddlewareError<M, S>> {
-        let signature = self
-            .signer
-            .sign_transaction(&tx)
-            .await
-            .map_err(SignerMiddlewareError::SignerError)?;
+    async fn sign_transaction(&self, tx: TypedTransaction) -> Result<Bytes> {
+        let signature = self.signer.sign_transaction(&tx).await?;
 
         // Return the raw rlp-encoded signed transaction
         Ok(tx.rlp_signed(self.signer.chain_id(), &signature))
@@ -157,7 +121,6 @@ where
     M: Middleware,
     S: Signer,
 {
-    type Error = SignerMiddlewareError<M, S>;
     type Provider = M::Provider;
     type Inner = M;
 
@@ -180,7 +143,7 @@ where
         &self,
         tx: &mut TypedTransaction,
         block: Option<BlockId>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<()> {
         // get the `from` field's nonce if it's set, else get the signer's nonce
         let from = if tx.from().is_some() && tx.from() != Some(&self.address()) {
             *tx.from().unwrap()
@@ -191,10 +154,7 @@ where
 
         let nonce = maybe(tx.nonce().cloned(), self.get_transaction_count(from, block)).await?;
         tx.set_nonce(nonce);
-        self.inner()
-            .fill_transaction(tx, block)
-            .await
-            .map_err(SignerMiddlewareError::MiddlewareError)?;
+        self.inner().fill_transaction(tx, block).await?;
         Ok(())
     }
 
@@ -205,7 +165,7 @@ where
         &self,
         tx: T,
         block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+    ) -> Result<PendingTransaction<'_, Self::Provider>> {
         let mut tx = tx.into();
 
         // fill any missing fields
@@ -213,11 +173,7 @@ where
 
         // If the from address is set and is not our signer, delegate to inner
         if tx.from().is_some() && tx.from() != Some(&self.address()) {
-            return self
-                .inner
-                .send_transaction(tx, block)
-                .await
-                .map_err(SignerMiddlewareError::MiddlewareError);
+            return Ok(self.inner.send_transaction(tx, block).await?);
         }
 
         // if we have a nonce manager set, we should try handling the result in
@@ -225,23 +181,13 @@ where
         let signed_tx = self.sign_transaction(tx).await?;
 
         // Submit the raw transaction
-        self.inner
-            .send_raw_transaction(signed_tx)
-            .await
-            .map_err(SignerMiddlewareError::MiddlewareError)
+        Ok(self.inner.send_raw_transaction(signed_tx).await?)
     }
 
     /// Signs a message with the internal signer, or if none is present it will make a call to
     /// the connected node's `eth_call` API.
-    async fn sign<T: Into<Bytes> + Send + Sync>(
-        &self,
-        data: T,
-        _: &Address,
-    ) -> Result<Signature, Self::Error> {
-        self.signer
-            .sign_message(data.into())
-            .await
-            .map_err(SignerMiddlewareError::SignerError)
+    async fn sign<T: Into<Bytes> + Send + Sync>(&self, data: T, _: &Address) -> Result<Signature> {
+        Ok(self.signer.sign_message(data.into()).await?)
     }
 }
 

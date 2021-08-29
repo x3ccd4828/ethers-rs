@@ -155,7 +155,7 @@ impl DsProxy {
         client: C,
         target: T,
         data: Bytes,
-    ) -> Result<ContractCall<M, Bytes>, ContractError<M>> {
+    ) -> eyre::Result<ContractCall<M, Bytes>> {
         // construct the full contract using DsProxy's address and the injected client.
         let ds_proxy = self
             .contract

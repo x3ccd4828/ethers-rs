@@ -4,6 +4,7 @@ use ethers_core::types::*;
 use ethers_providers::{FromErr, Middleware, PendingTransaction};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use thiserror::Error;
+use eyre::Result;
 
 #[derive(Debug)]
 /// Middleware used for calculating nonces locally, useful for signing multiple
@@ -39,33 +40,18 @@ where
     async fn get_transaction_count_with_manager(
         &self,
         block: Option<BlockId>,
-    ) -> Result<U256, NonceManagerError<M>> {
+    ) -> Result<U256> {
         // initialize the nonce the first time the manager is called
         if !self.initialized.load(Ordering::SeqCst) {
             let nonce = self
                 .inner
                 .get_transaction_count(self.address, block)
-                .await
-                .map_err(FromErr::from)?;
+                .await?;
             self.nonce.store(nonce.as_u64(), Ordering::SeqCst);
             self.initialized.store(true, Ordering::SeqCst);
         }
 
         Ok(self.next())
-    }
-}
-
-#[derive(Error, Debug)]
-/// Thrown when an error happens at the Nonce Manager
-pub enum NonceManagerError<M: Middleware> {
-    /// Thrown when the internal middleware errors
-    #[error("{0}")]
-    MiddlewareError(M::Error),
-}
-
-impl<M: Middleware> FromErr<M::Error> for NonceManagerError<M> {
-    fn from(src: M::Error) -> Self {
-        NonceManagerError::MiddlewareError(src)
     }
 }
 
@@ -75,7 +61,6 @@ impl<M> Middleware for NonceManagerMiddleware<M>
 where
     M: Middleware,
 {
-    type Error = NonceManagerError<M>;
     type Provider = M::Provider;
     type Inner = M;
 
@@ -90,7 +75,7 @@ where
         &self,
         tx: T,
         block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+    ) -> Result<PendingTransaction<'_, Self::Provider>> {
         let mut tx = tx.into();
 
         if tx.nonce().is_none() {
@@ -106,13 +91,12 @@ where
                     // was a nonce mismatch
                     self.nonce.store(nonce.as_u64(), Ordering::SeqCst);
                     tx.set_nonce(nonce);
-                    self.inner
+                    Ok(self.inner
                         .send_transaction(tx, block)
-                        .await
-                        .map_err(FromErr::from)
+                        .await?)
                 } else {
                     // propagate the error otherwise
-                    Err(FromErr::from(err))
+                    Err(err.into())
                 }
             }
         }

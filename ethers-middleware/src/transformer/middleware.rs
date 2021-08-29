@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use ethers_core::types::{transaction::eip2718::TypedTransaction, *};
 use ethers_providers::{FromErr, Middleware, PendingTransaction};
 use thiserror::Error;
+use eyre::Result;
 
 #[derive(Debug)]
 /// Middleware used for intercepting transaction requests and transforming them to be executed by
@@ -25,18 +26,9 @@ where
 }
 
 #[derive(Error, Debug)]
-pub enum TransformerMiddlewareError<M: Middleware> {
+pub enum TransformerMiddlewareError {
     #[error(transparent)]
     TransformerError(#[from] TransformerError),
-
-    #[error("{0}")]
-    MiddlewareError(M::Error),
-}
-
-impl<M: Middleware> FromErr<M::Error> for TransformerMiddlewareError<M> {
-    fn from(src: M::Error) -> TransformerMiddlewareError<M> {
-        TransformerMiddlewareError::MiddlewareError(src)
-    }
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -46,7 +38,6 @@ where
     M: Middleware,
     T: Transformer,
 {
-    type Error = TransformerMiddlewareError<M>;
     type Provider = M::Provider;
     type Inner = M;
 
@@ -58,7 +49,7 @@ where
         &self,
         tx: Tx,
         block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+    ) -> Result<PendingTransaction<'_, Self::Provider>> {
         let mut tx = tx.into();
 
         // construct the appropriate proxy tx.
@@ -69,6 +60,5 @@ where
         self.inner
             .send_transaction(tx, block)
             .await
-            .map_err(TransformerMiddlewareError::MiddlewareError)
     }
 }

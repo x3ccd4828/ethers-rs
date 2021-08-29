@@ -2,6 +2,7 @@ use ethers_core::types::{transaction::eip2718::TypedTransaction, BlockId};
 use ethers_providers::{FromErr, Middleware, PendingTransaction};
 
 use async_trait::async_trait;
+use eyre::Result;
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -52,12 +53,6 @@ pub struct PolicyMiddleware<M, P> {
     pub(crate) policy: P,
 }
 
-impl<M: Middleware, P: Policy> FromErr<M::Error> for PolicyMiddlewareError<M, P> {
-    fn from(src: M::Error) -> PolicyMiddlewareError<M, P> {
-        PolicyMiddlewareError::MiddlewareError(src)
-    }
-}
-
 impl<M, P> PolicyMiddleware<M, P>
 where
     M: Middleware,
@@ -71,13 +66,10 @@ where
 
 #[derive(Error, Debug)]
 /// Error thrown when the client interacts with the policy middleware.
-pub enum PolicyMiddlewareError<M: Middleware, P: Policy> {
+pub enum PolicyMiddlewareError<P: Policy> {
     /// Thrown when the internal policy errors
     #[error("{0:?}")]
     PolicyError(P::Error),
-    /// Thrown when an internal middleware errors
-    #[error(transparent)]
-    MiddlewareError(M::Error),
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -87,7 +79,6 @@ where
     M: Middleware,
     P: Policy,
 {
-    type Error = PolicyMiddlewareError<M, P>;
     type Provider = M::Provider;
     type Inner = M;
 
@@ -101,15 +92,12 @@ where
         &self,
         tx: T,
         block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+    ) -> Result<PendingTransaction<'_, Self::Provider>> {
         let tx = self
             .policy
             .ensure_can_send(tx.into())
             .await
             .map_err(PolicyMiddlewareError::PolicyError)?;
-        self.inner
-            .send_transaction(tx, block)
-            .await
-            .map_err(PolicyMiddlewareError::MiddlewareError)
+        Ok(self.inner.send_transaction(tx, block).await?)
     }
 }

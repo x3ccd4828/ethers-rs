@@ -80,7 +80,6 @@ where
     M: Middleware,
     E: GasEscalator,
 {
-    type Error = GasEscalatorError<M>;
     type Provider = M::Provider;
     type Inner = M;
 
@@ -92,14 +91,13 @@ where
         &self,
         tx: T,
         block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+    ) -> eyre::Result<PendingTransaction<'_, Self::Provider>> {
         let tx = tx.into();
 
         let pending_tx = self
             .inner()
             .send_transaction(tx.clone(), block)
-            .await
-            .map_err(GasEscalatorError::MiddlewareError)?;
+            .await?;
 
         let tx = match tx {
             TypedTransaction::Legacy(inner) => inner,
@@ -235,19 +233,9 @@ where
 }
 
 // Boilerplate
-impl<M: Middleware> FromErr<M::Error> for GasEscalatorError<M> {
-    fn from(src: M::Error) -> GasEscalatorError<M> {
-        GasEscalatorError::MiddlewareError(src)
-    }
-}
-
 #[derive(Error, Debug)]
 /// Error thrown when the GasEscalator interacts with the blockchain
-pub enum GasEscalatorError<M: Middleware> {
-    #[error("{0}")]
-    /// Thrown when an internal middleware errors
-    MiddlewareError(M::Error),
-
+pub enum GasEscalatorError {
     #[error("Gas escalation is only supported for EIP2930 or Legacy transactions")]
     UnsupportedTxType,
 }

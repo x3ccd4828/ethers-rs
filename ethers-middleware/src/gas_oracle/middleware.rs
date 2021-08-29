@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use ethers_core::types::{transaction::eip2718::TypedTransaction, *};
 use ethers_providers::{FromErr, Middleware, PendingTransaction};
 use thiserror::Error;
+use eyre::Result;
 
 #[derive(Debug)]
 /// Middleware used for fetching gas prices over an API instead of `eth_gasPrice`
@@ -22,21 +23,12 @@ where
 }
 
 #[derive(Error, Debug)]
-pub enum MiddlewareError<M: Middleware> {
+pub enum MiddlewareError {
     #[error(transparent)]
     GasOracleError(#[from] GasOracleError),
 
-    #[error("{0}")]
-    MiddlewareError(M::Error),
-
     #[error("This gas price oracle only works with Legacy and EIP2930 transactions.")]
     UnsupportedTxType,
-}
-
-impl<M: Middleware> FromErr<M::Error> for MiddlewareError<M> {
-    fn from(src: M::Error) -> MiddlewareError<M> {
-        MiddlewareError::MiddlewareError(src)
-    }
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -46,7 +38,6 @@ where
     M: Middleware,
     G: GasOracle,
 {
-    type Error = MiddlewareError<M>;
     type Provider = M::Provider;
     type Inner = M;
 
@@ -56,14 +47,14 @@ where
         &self.inner
     }
 
-    async fn get_gas_price(&self) -> Result<U256, Self::Error> {
+    async fn get_gas_price(&self) -> Result<U256> {
         Ok(self.gas_oracle.fetch().await?)
     }
 
     async fn estimate_eip1559_fees(
         &self,
         _: Option<fn(U256, Vec<Vec<U256>>) -> (U256, U256)>,
-    ) -> Result<(U256, U256), Self::Error> {
+    ) -> Result<(U256, U256)> {
         Ok(self.gas_oracle.estimate_eip1559_fees().await?)
     }
 
@@ -71,7 +62,7 @@ where
         &self,
         tx: T,
         block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+    ) -> Result<PendingTransaction<'_, Self::Provider>> {
         let mut tx = tx.into();
 
         match tx {
@@ -98,9 +89,8 @@ where
                 }
             }
         };
-        self.inner
+        Ok(self.inner
             .send_transaction(tx, block)
-            .await
-            .map_err(MiddlewareError::MiddlewareError)
+            .await?)
     }
 }

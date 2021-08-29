@@ -33,6 +33,7 @@ url = { version = "2.2.2", default-features = false }
 
 serde_json = { version = "1.0.64", default-features = false }
 instant = {version = "0.1.10", features = ["now"] }
+eyre = "0.6.5"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.5" }
