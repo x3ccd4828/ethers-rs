@@ -66,6 +66,8 @@
 mod transports;
 pub use transports::*;
 
+mod new_provider;
+
 mod provider;
 
 // ENS support
@@ -105,6 +107,7 @@ pub trait JsonRpcClient: Debug + Send + Sync {
     /// Sends a request with the provided JSON-RPC and parameters serialized as JSON
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R>
     where
+        Self: Sized,
         T: Debug + Serialize + Send + Sync,
         R: Serialize + DeserializeOwned;
 }
