@@ -1,7 +1,7 @@
 use crate::Middleware;
 use crate::{
     stream::{interval, DEFAULT_POLL_INTERVAL},
-    JsonRpcClient, PinBoxFut, Provider, ProviderError,
+    JsonRpcClient, PinBoxFut, Provider,
 };
 use ethers_core::types::{Transaction, TransactionReceipt, TxHash, U64};
 use futures_core::stream::Stream;

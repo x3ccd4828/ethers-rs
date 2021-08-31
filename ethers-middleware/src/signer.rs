@@ -1,11 +1,10 @@
 use ethers_core::types::{
     transaction::eip2718::TypedTransaction, Address, BlockId, Bytes, Signature,
 };
-use ethers_providers::{maybe, FromErr, Middleware, PendingTransaction};
+use ethers_providers::{maybe, Middleware, PendingTransaction};
 use ethers_signers::Signer;
 
 use async_trait::async_trait;
-use thiserror::Error;
 
 use eyre::Result;
 
@@ -175,7 +174,7 @@ where
 
         // If the from address is set and is not our signer, delegate to inner
         if tx.from().is_some() && tx.from() != Some(&self.address()) {
-            return Ok(self.inner.send_transaction(tx, block).await?);
+            return self.inner.send_transaction(tx, block).await;
         }
 
         // if we have a nonce manager set, we should try handling the result in

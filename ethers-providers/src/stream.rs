@@ -1,4 +1,4 @@
-use crate::{JsonRpcClient, Middleware, PinBoxFut, Provider, ProviderError};
+use crate::{JsonRpcClient, Middleware, PinBoxFut, Provider};
 
 use ethers_core::types::{Transaction, TxHash, U256};
 

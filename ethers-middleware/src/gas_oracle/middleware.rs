@@ -1,7 +1,7 @@
 use super::{GasOracle, GasOracleError};
 use async_trait::async_trait;
 use ethers_core::types::{transaction::eip2718::TypedTransaction, *};
-use ethers_providers::{FromErr, Middleware, PendingTransaction};
+use ethers_providers::{Middleware, PendingTransaction};
 use eyre::Result;
 use thiserror::Error;
 

@@ -1,5 +1,5 @@
 use ethers_core::types::{transaction::eip2718::TypedTransaction, BlockId};
-use ethers_providers::{FromErr, Middleware, PendingTransaction};
+use ethers_providers::{Middleware, PendingTransaction};
 
 use async_trait::async_trait;
 use eyre::Result;

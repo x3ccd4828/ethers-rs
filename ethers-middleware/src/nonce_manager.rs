@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::*;
-use ethers_providers::{FromErr, Middleware, PendingTransaction};
+use ethers_providers::{Middleware, PendingTransaction};
 use eyre::Result;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use thiserror::Error;
 
 #[derive(Debug)]
 /// Middleware used for calculating nonces locally, useful for signing multiple
@@ -91,7 +90,7 @@ where
                     Ok(self.inner.send_transaction(tx, block).await?)
                 } else {
                     // propagate the error otherwise
-                    Err(err.into())
+                    Err(err)
                 }
             }
         }

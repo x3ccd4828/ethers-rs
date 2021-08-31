@@ -7,7 +7,7 @@ pub use linear::LinearGasPrice;
 
 use async_trait::async_trait;
 use ethers_core::types::{BlockId, TransactionRequest, TxHash, U256};
-use ethers_providers::{interval, FromErr, Middleware, PendingTransaction, StreamExt};
+use ethers_providers::{interval, Middleware, PendingTransaction, StreamExt};
 use futures_util::lock::Mutex;
 use instant::Instant;
 use std::pin::Pin;

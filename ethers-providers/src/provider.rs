@@ -2,7 +2,7 @@ use crate::{
     ens,
     pubsub::{PubsubClient, SubscriptionStream},
     stream::{FilterWatcher, DEFAULT_POLL_INTERVAL},
-    FeeHistory, FromErr, Http as HttpProvider, JsonRpcClient, JsonRpcClientWrapper, MockProvider,
+    FeeHistory, Http as HttpProvider, JsonRpcClient, JsonRpcClientWrapper, MockProvider,
     PendingTransaction, QuorumProvider,
 };
 
@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use hex::FromHex;
 use serde::{de::DeserializeOwned, Serialize};
 use thiserror::Error;
-use url::{ParseError, Url};
+use url::Url;
 
 use std::{convert::TryFrom, fmt::Debug, time::Duration};
 use tracing::trace;
@@ -62,12 +62,6 @@ pub struct Provider<P> {
 impl<P> AsRef<P> for Provider<P> {
     fn as_ref(&self) -> &P {
         &self.inner
-    }
-}
-
-impl FromErr<ProviderError> for ProviderError {
-    fn from(src: ProviderError) -> Self {
-        src
     }
 }
 
@@ -928,7 +922,7 @@ impl TryFrom<String> for Provider<HttpProvider> {
     type Error = eyre::Error;
 
     fn try_from(src: String) -> Result<Self> {
-        Ok(Provider::try_from(src.as_str())?)
+        Provider::try_from(src.as_str())
     }
 }
 

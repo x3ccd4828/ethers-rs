@@ -85,7 +85,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use ethers_core::types::transaction::{eip2718::TypedTransaction, eip2930::AccessListWithGasUsed};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
-use std::{error::Error, fmt::Debug, future::Future, pin::Pin, str::FromStr};
+use std::{fmt::Debug, future::Future, pin::Pin, str::FromStr};
 
 use eyre::Result;
 pub use provider::{FilterKind, Provider, ProviderError};
@@ -110,9 +110,6 @@ pub trait JsonRpcClient: Debug + Send + Sync {
 }
 
 use ethers_core::types::*;
-pub trait FromErr<T> {
-    fn from(src: T) -> Self;
-}
 
 /// Calls the future if `item` is None, otherwise returns a `futures::ok`
 pub async fn maybe<F, T, E>(item: Option<T>, f: F) -> Result<T, E>
