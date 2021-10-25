@@ -119,6 +119,14 @@ impl TypedTransaction {
         };
     }
 
+    pub fn gas_price(&self) -> Option<U256> {
+        match self {
+            Legacy(inner) => inner.gas_price,
+            Eip2930(inner) => inner.tx.gas_price,
+            Eip1559(_) => None,
+        }
+    }
+
     pub fn set_gas_price<T: Into<U256>>(&mut self, gas_price: T) {
         let gas_price = gas_price.into();
         match self {
